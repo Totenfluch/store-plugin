@@ -472,16 +472,52 @@ public Action:Timer_ReadyTimer(Handle:timer, any:data)
 	}
 	else
 	{
+		char logfile[255];
+		BuildPath(Path_SM, logfile, sizeof(logfile), "logs/store_toten.txt");
+		char clientId[20];
+		GetClientAuthId(client, AuthId_Steam2, clientId, sizeof(clientId));
+		char targetId[20];
+		GetClientAuthId(target, AuthId_Steam2, targetId, sizeof(targetId));
+		
 		for(new i=0;i<STORE_TRADE_MAX_OFFERS;++i)
 		{
-			if(g_iOffers[client][i] != -1)
+			if(g_iOffers[client][i] != -1){
 				Store_GiveClientItem(client, target, g_iOffers[client][i]);
-			if(g_iOffers[target][i] != -1)
+				
+				new m_eItem[Store_Item];
+				new m_eHandler[Type_Handler];
+				decl String:m_szItemID[11];
+
+				Store_GetItem(g_iOffers[client][i], m_eItem);
+				Store_GetHandler(m_eItem[iHandler], m_eHandler);
+
+				IntToString(g_iOffers[client][i], STRING(m_szItemID));
+				LogToFile(logfile, "TRADE | FROM: %N TO: %N  | %s -> %s | ITEM: %s %s |", client, target, clientId, targetId, m_eItem[szName], m_eHandler[szType]);
+			}
+			if(g_iOffers[target][i] != -1){
 				Store_GiveClientItem(target, client, g_iOffers[target][i]);
+				
+				new m_eItem[Store_Item];
+				new m_eHandler[Type_Handler];
+				decl String:m_szItemID[11];
+
+				Store_GetItem(g_iOffers[target][i], m_eItem);
+				Store_GetHandler(m_eItem[iHandler], m_eHandler);
+
+				IntToString(g_iOffers[target][i], STRING(m_szItemID));
+				LogToFile(logfile, "TRADE | FROM: %N TO: %N  | %s -> %s | ITEM: %s %s |", target, client, targetId, clientId, m_eItem[szName], m_eHandler[szType]);
+			}
 		}
 		Store_SetClientCredits(client, Store_GetClientCredits(client)+g_iOfferedCredits[target]-g_iOfferedCredits[client]);
+		
+		LogToFile(logfile, "TRADE | FROM: %N TO: %N  | %s -> %s | CREDITS: %i |", client, target, clientId, targetId, (g_iOfferedCredits[target]-g_iOfferedCredits[client]));
+		
+		
 		Store_SetClientCredits(target, Store_GetClientCredits(target)+g_iOfferedCredits[client]-g_iOfferedCredits[target]);
-
+		
+		LogToFile(logfile, "TRADE | FROM: %N TO: %N  | %s -> %s | CREDITS: %i |", target, client, targetId, clientId, (g_iOfferedCredits[client]-g_iOfferedCredits[target]));
+	
+	
 		ResetTrade(target);
 		ResetTrade(client);
 

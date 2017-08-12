@@ -151,7 +151,6 @@ new SilentChatTrigger = 0;
 #include "store/grenskins.sp"
 #include "store/grentrails.sp"
 #include "store/weaponcolors.sp"
-#include "store/tfsupport.sp"
 #include "store/paintball.sp"
 #include "store/betting.sp"
 #include "store/watergun.sp"
@@ -299,7 +298,6 @@ public OnPluginStart()
 	GrenadeSkins_OnPluginStart();
 	GrenadeTrails_OnPluginStart();
 	WeaponColors_OnPluginStart();
-	TFSupport_OnPluginStart();
 	Paintball_OnPluginStart();
 	Watergun_OnPluginStart();
 	Betting_OnPluginStart();
@@ -687,8 +685,6 @@ public OnConfigsExecuted()
 public OnGameFrame()
 {
 	Trails_OnGameFrame();
-	TFWeapon_OnGameFrame();
-	TFHead_OnGameFrame();
 }
 #endif
 
@@ -816,6 +812,7 @@ public Native_SetClientCredits(Handle:plugin, numParams)
 	new m_iCredits = GetNativeCell(2);
 	Store_LogMessage(client, m_iCredits-g_eClients[client][iCredits], "Set by external plugin");
 	g_eClients[client][iCredits] = m_iCredits;
+	Store_SaveClientData(client);
 	return 1;
 }
 
@@ -2132,7 +2129,7 @@ public Action:Timer_CreditTimer(Handle:timer, any:userid)
 		g_eClients[client][iCredits] += m_iCredits;
 		if(g_eCvars[g_cvarCreditMessages][aCache])
 			Chat(client, "%t", "Credits Earned For Playing", m_iCredits);
-		Store_LogMessage(client, m_iCredits, "Earned for playing");
+		//Store_LogMessage(client, m_iCredits, "Earned for playing");
 	}
 
 	return Plugin_Continue;
@@ -2301,7 +2298,7 @@ public SQLCallback_LoadClientInventory_Credits(Handle:owner, Handle:hndl, const 
 			Format(STRING(m_szQuery), "SELECT * FROM store_items WHERE `player_id`=%d", g_eClients[client][iId]);
 			SQL_TQuery(g_hDatabase, SQLCallback_LoadClientInventory_Items, m_szQuery, userid);
 
-			Store_LogMessage(client, g_eClients[client][iCredits], "Amount of credits when the player joined");
+			//Store_LogMessage(client, g_eClients[client][iCredits], "Amount of credits when the player joined");
 			
 			Store_SaveClientData(client);
 		}
@@ -2707,6 +2704,7 @@ Store_BuyItem(client, itemid, plan=-1)
 	Store_LogMessage(client, -g_eItems[itemid][iPrice], "Bought a %s %s", g_eItems[itemid][szName], g_eTypeHandlers[g_eItems[itemid][iHandler]][szType]);
 	
 	Chat(client, "%t", "Chat Bought Item", g_eItems[itemid][szName], g_eTypeHandlers[g_eItems[itemid][iHandler]][szType]);
+	Store_SaveClientInventory(client);
 }
 
 public Store_SellItem(client, itemid)
@@ -3103,10 +3101,15 @@ Store_LogMessage(client, credits, const String:message[], ...)
 
 	decl String:m_szReason[256];
 	VFormat(STRING(m_szReason), message, 4);
+	char clientId[20];
+	GetClientAuthId(client, AuthId_Steam2, clientId, sizeof(clientId));
 
 	if(g_eCvars[g_cvarLogging][aCache] == 1)
 	{
-		LogToOpenFileEx(g_hLogFile, "%N's credits have changed by %d. Reason: %s", client, credits, m_szReason);
+		char logfile[255];
+		BuildPath(Path_SM, logfile, sizeof(logfile), "logs/store_toten.txt");
+		//LogToOpenFileEx(g_hLogFile, "%N's (%s) credits have changed by %d. Reason: %s", client, clientId, credits, m_szReason);
+		LogToFile(logfile, "%N | %s | CHANGE: %d | Reason: %s |", client, clientId, credits, m_szReason);
 	} else if(g_eCvars[g_cvarLogging][aCache] == 2)
 	{
 		decl String:m_szQuery[256];

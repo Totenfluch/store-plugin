@@ -173,6 +173,9 @@ public CreatePet(client)
 	if(g_unSelectedPet[client] == -1)
 		return;
 
+	if(!client || !IsClientInGame(client) || !IsPlayerAlive(client) || !(2<=GetClientTeam(client)<=3))
+		return;
+		
 	new m_iData = g_unSelectedPet[client];
 
 
@@ -214,15 +217,76 @@ public CreatePet(client)
 		// Teleport the pet to the right fPosition and attach it
 		TeleportEntity(m_unEnt, m_flClientOrigin, m_flAngles, NULL_VECTOR); 
 		
-		SetVariantString("!activator");
+		/*SetVariantString("!activator");
 		AcceptEntityInput(m_unEnt, "SetParent", client, m_unEnt, 0);
 		
 		SetVariantString("letthehungergamesbegin");
-		AcceptEntityInput(m_unEnt, "SetParentAttachmentMaintainOffset", m_unEnt, m_unEnt, 0);
-	  
+		AcceptEntityInput(m_unEnt, "SetParentAttachmentMaintainOffset", m_unEnt, m_unEnt, 0);*/
+	  	
+	  	SDKHook(client, SDKHook_PreThink, PetThink);
 		g_unClientPet[client] = EntIndexToEntRef(m_unEnt);
 		g_unLastAnimation[client] = -1;
 	}
+}
+
+public PetThink(int client)
+{
+	
+	// Get locations, angles, distances
+	float pos[3];
+	float ang[3];
+	float clientPos[3];
+	
+	int m_unEnt = EntRefToEntIndex(g_unClientPet[client]);
+	if (!IsValidEntity(m_unEnt)) {
+		SDKUnhook(client, SDKHook_PreThink, PetThink);
+		return;
+	}
+	
+	GetEntPropVector(m_unEnt, Prop_Data, "m_vecOrigin", pos);
+	GetEntPropVector(m_unEnt, Prop_Data, "m_angRotation", ang);
+	GetClientAbsOrigin(client, clientPos);
+	
+	float dist = GetVectorDistance(clientPos, pos);
+	float distX = clientPos[0] - pos[0];
+	float distY = clientPos[1] - pos[1];
+	float speed = (dist - 64.0) / 54;
+	Math_Clamp(speed, -4.0, 4.0);
+	if (FloatAbs(speed) < 0.3)
+		speed *= 0.1;
+	
+	// Teleport to owner if too far
+	if (dist > 1024.0)
+	{
+		float posTmp[3];
+		GetClientAbsOrigin(client, posTmp);
+		OffsetLocation(posTmp);
+		TeleportEntity(m_unEnt, posTmp, NULL_VECTOR, NULL_VECTOR);
+		GetEntPropVector(m_unEnt, Prop_Data, "m_vecOrigin", pos);
+	}
+	
+	// Set new location data	
+	if (pos[0] < clientPos[0])pos[0] += speed;
+	if (pos[0] > clientPos[0])pos[0] -= speed;
+	if (pos[1] < clientPos[1])pos[1] += speed;
+	if (pos[1] > clientPos[1])pos[1] -= speed;
+	
+	// Height
+	
+	int selectedPet = g_unSelectedPet[client];
+	float petoff = g_ePets[selectedPet][fPosition][2];
+	
+	pos[2] = clientPos[2] + 100.0;
+	float distZ = GetClientDistanceToGround(m_unEnt, client, pos[2]); 
+	if(distZ < 300 && distZ > -300)
+		pos[2] -= distZ;
+	pos[2] += petoff;
+	
+	// Look at owner
+	ang[1] = (ArcTangent2(distY, distX) * 180) / 3.14;
+	
+	
+	TeleportEntity(m_unEnt, pos, ang, NULL_VECTOR);
 }
 
 public ResetPet(client)
@@ -236,4 +300,65 @@ public ResetPet(client)
 		return;
 
 	AcceptEntityInput(m_unEnt, "Kill");
+}
+
+public float GetClientDistanceToGround(int ent, int client, float pos2) {
+	
+	float fOrigin[3];
+	float fGround[3];
+	GetEntPropVector(ent, Prop_Data, "m_vecOrigin", fOrigin);
+	fOrigin[2] = pos2;
+	fOrigin[2] += 100.0;
+	float anglePos[3];
+	anglePos[0] = 90.0;
+	anglePos[1] = 0.0;
+	anglePos[2] = 0.0;
+	
+	TR_TraceRayFilter(fOrigin, anglePos, MASK_PLAYERSOLID, RayType_Infinite, TraceRayNoPlayers, client);
+	if (TR_DidHit()) {
+		TR_GetEndPosition(fGround);
+		fOrigin[2] -= 100.0;
+		return GetVectorDistance(fOrigin, fGround);
+	}
+	return 0.0;
+}
+
+public bool TraceRayNoPlayers(int entity, int mask, any data)
+{
+	if (entity == data || (entity >= 1 && entity <= MaxClients)) {
+		return false;
+	}
+	return true;
+}
+
+OffsetLocation(float pos[3])
+{
+	pos[0] += GetRandomFloat(-128.0, 128.0);
+	pos[1] += GetRandomFloat(-128.0, 128.0);
+}
+
+stock any:Math_Clamp(any:value, any:min, any:max)
+{
+	value = Math_Min(value, min);
+	value = Math_Max(value, max);
+
+	return value;
+}
+
+stock any:Math_Min(any:value, any:min)
+{
+	if (value < min) {
+		value = min;
+	}
+	
+	return value;
+}
+
+stock any:Math_Max(any:value, any:max)
+{	
+	if (value > max) {
+		value = max;
+	}
+	
+	return value;
 }
